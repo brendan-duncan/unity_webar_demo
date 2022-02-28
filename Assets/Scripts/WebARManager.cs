@@ -136,7 +136,7 @@ public class WebARManager : MonoBehaviour
         {
             Matrix4x4 viewMatrix = WebAR.Manager.GetPoseViewMatrix();
 
-            // Extract hew position and rotation from the view matrix.
+            // Extract the position and rotation from the view matrix.
             Quaternion viewRotation = viewMatrix.rotation;
 
             // Adjust the coordinates from WebXR to Unity
