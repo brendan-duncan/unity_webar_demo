@@ -28,7 +28,7 @@ var WebARModule =
         origCanvasHeight: null,
 
         sharedData: 0,
-        _posePosition: new Float32Array(4), // temp memory, kept here to reduce garbage collection.
+        _posePosition: new Float32Array([0,0,0,1]),
     },
 
     JS_WebAR_Initialize__deps: ["$WebAR", "JS_WebAR_GetState", "JS_WebAR_RequestSession",
@@ -232,20 +232,15 @@ var WebARModule =
         // pose will be null if the tracking hasn't been established yet.
         if (pose)
         {
-            // In mobile AR, there is only one view.
+            // Copy the view matrix to the C# shared memory.
             var view = pose.views[0];
-
-            var p = pose.transform.position;
-
-            // Keep track of the framebuffer viewport
-            WebAR.viewport = WebAR.session.renderState.baseLayer.getViewport(view);
-
-            // Copy the view's transform and pose position to the C# shared memory.
-            WebAR._posePosition[0] = p.x;
-            WebAR._posePosition[1] = p.y;
-            WebAR._posePosition[2] = p.z;
-            WebAR._posePosition[3] = 1.0;
             HEAPF32.set(view.transform.matrix, WebAR.sharedData);
+
+            // Copy the pose position to the C# shared memory.
+            var pos = pose.transform.position;
+            WebAR._posePosition[0] = pos.x;
+            WebAR._posePosition[1] = pos.y;
+            WebAR._posePosition[2] = pos.z;
             HEAPF32.set(WebAR._posePosition, WebAR.sharedData + 16);
 
             jsWebARSetState(WebAR.XRState.running);
