@@ -109,16 +109,20 @@ var WebARModule =
         if (state == WebAR.XRState.unsupported)
         {
             WebAR.xrButton.innerHTML = "AR not found";
-            WebAR.xrButton.disabled = false;
+            WebAR.xrButton.disabled = true;
         }
-        else if (state == WebAR.XRState.stopped)
-            WebAR.xrButton.innerHTML = "Start AR";
-        else if (state == WebAR.XRState.startRequested)
-            WebAR.xrButton.innerHTML = "Starting AR...";
-        else if (state == WebAR.XRState.pendingPose)
-            WebAR.xrButton.innerHTML = "Tracking...";
-        else if (state == WebAR.XRState.running)
-            WebAR.xrButton.innerHTML = "Stop AR";
+        else
+        {
+            WebAR.xrButton.disabled = false;
+            if (state == WebAR.XRState.stopped)
+                WebAR.xrButton.innerHTML = "Start AR";
+            else if (state == WebAR.XRState.startRequested)
+                WebAR.xrButton.innerHTML = "Starting AR...";
+            else if (state == WebAR.XRState.pendingPose)
+                WebAR.xrButton.innerHTML = "Tracking...";
+            else if (state == WebAR.XRState.running)
+                WebAR.xrButton.innerHTML = "Stop AR";
+        }
     },
 
     // Set the current state, updating the XR button and calling the Unity callback.
