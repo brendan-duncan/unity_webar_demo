@@ -2,7 +2,7 @@
 // In this case, the public functions, JS_WebAR_*, are bound to C# in Scripts/WebARManager.cs.
 var WebARModule =
 {
-    // Stores state data for managing WebAR.
+    // Data for managing WebXR.
     $WebAR:
     {
         XRState:
@@ -14,24 +14,58 @@ var WebARModule =
             running: 3, // WebXR session is running, tracking established.
         },
 
+        overlay: null,
+        xrButton: null,
+
         state: 0,
         session: null,
         localReferenceSpace: null,
-        projectionMatrix: null,
-        viewMatrix: null,
-        viewport: null,
         framebuffer: null,
         stateChangeCallback: null,
 
         origRequestAnimationFrame: null,
         origCanvasWidth: null,
         origCanvasHeight: null,
+
+        sharedData: 0,
+        _posePosition: new Float32Array(4), // temp memory, kept here to reduce garbage collection.
     },
 
-    JS_WebAR_Initialize__deps: ["$WebAR", "JS_WebAR_GetState", "$jsWebARSetState"],
-    JS_WebAR_Initialize: function(stateChangeCallback)
+    JS_WebAR_Initialize__deps: ["$WebAR", "JS_WebAR_GetState", "JS_WebAR_RequestSession",
+                                "JS_WebAR_EndSession", "$jsWebARSetState"],
+    JS_WebAR_Initialize: function(sharedData, stateChangeCallback)
     {
+        // navigator.xr will be undefined if WebXR is not available.
+        if (navigator.xr)
+        {
+            var canvas = Module["canvas"];
+            // Add an overlay element to provide a start button and information for WebXR.
+            WebAR.overlay = document.createElement("div");
+            WebAR.overlay.style = "position: absolute; top: 0px; left: 0px; width:" +
+                                    canvas.width + "px; height:" + canvas.height + "px;";
+            canvas.parentNode.insertBefore(WebAR.overlay, canvas);
+            // Add a button to start/stop WebXR
+            WebAR.xrButton = document.createElement("button");
+            WebAR.overlay.appendChild(WebAR.xrButton);
+            WebAR.xrButton.addEventListener("click", function()
+            {
+                if (_JS_WebAR_GetState() == 0)
+                    _JS_WebAR_RequestSession();
+                else
+                    _JS_WebAR_EndSession();
+            });
+
+            // Check to see if the browser supports immersive-ar mode, otherwise disable the button.
+            navigator.xr.isSessionSupported('immersive-ar').then(function (supported)
+            {
+                if (!supported)
+                    jsWebARSetState(WebAR.XRState.unsupported);
+            });
+        }
+
+        WebAR.sharedData = sharedData >> 2;
         WebAR.stateChangeCallback = stateChangeCallback;
+
         // Make sure Unity knows what the current state is.
         jsWebARSetState(_JS_WebAR_GetState(), true);
     },
@@ -49,7 +83,12 @@ var WebARModule =
     JS_WebAR_RequestSession: function()
     {
         jsWebARSetState(WebAR.XRState.startRequested);
-        navigator.xr.requestSession("immersive-ar").then(function (session)
+        var options =
+        {
+            optionalFeatures: ["dom-overlay"],
+            domOverlay: {root: WebAR.overlay}
+        };
+        navigator.xr.requestSession("immersive-ar", options).then(function (session)
         {
             WebAR.session = session;
             jsWebAROnSessionStarted(session);
@@ -63,38 +102,46 @@ var WebARModule =
             WebAR.session.end();
     },
 
-    JS_WebAR_GetPoseViewMatrixPtr__deps: ["$WebAR"],
-    JS_WebAR_GetPoseViewMatrixPtr: function()
+    // Updates the XR btuton to reflect the current state.
+    $jsWebARUpdateButton__deps: ["$WebAR", "JS_WebAR_GetState"],
+    $jsWebARUpdateButton: function()
     {
-        return WebAR.viewMatrix;
+        var state = _JS_WebAR_GetState();
+        if (state == WebAR.XRState.unsupported)
+        {
+            WebAR.xrButton.innerHTML = "AR not found";
+            WebAR.xrButton.disabled = false;
+        }
+        else if (state == WebAR.XRState.stopped)
+            WebAR.xrButton.innerHTML = "Start AR";
+        else if (state == WebAR.XRState.startRequested)
+            WebAR.xrButton.innerHTML = "Starting AR...";
+        else if (state == WebAR.XRState.pendingPose)
+            WebAR.xrButton.innerHTML = "Tracking...";
+        else if (state == WebAR.XRState.running)
+            WebAR.xrButton.innerHTML = "Stop AR";
     },
 
-    JS_WebAR_GetPoseProjectionMatrixPtr__deps: ["$WebAR"],
-    JS_WebAR_GetPoseProjectionMatrixPtr: function()
-    {
-        return WebAR.projectionMatrix;
-    },
-
-    $jsWebARSetState__deps: ["$WebAR"],
+    // Set the current state, updating the XR button and calling the Unity callback.
+    $jsWebARSetState__deps: ["$WebAR", "$jsWebARUpdateButton"],
     $jsWebARSetState: function(state, alwaysSend)
     {
         if (state == WebAR.state && !alwaysSend)
             return;
         WebAR.state = state;
+        jsWebARUpdateButton();
         // Call the C# callback function for the state change.
         if (WebAR.stateChangeCallback)
             dynCall_vi(WebAR.stateChangeCallback, state);
     },
 
-    $jsWebAROnSessionStarted__deps: ["$jsWebAROnSessionEnded", "$jsWebAROnXRFrame", "$jsWebARSetState", "$WebAR"],
+    // Called when the WebXR session has started.
+    $jsWebAROnSessionStarted__deps: ["$jsWebAROnSessionEnded", "$jsWebAROnXRFrame",
+                                     "$jsWebARSetState", "$WebAR"],
     $jsWebAROnSessionStarted: function(session)
     {
         // The session has started, but the tracking pose hasn't been established yet.
         jsWebARSetState(WebAR.XRState.pendingPose);
-
-        // Allocate memory to store matrix data that gets passed to C#.
-        WebAR.viewMatrix = _malloc(16 * 4);
-        WebAR.projectionMatrix = _malloc(16 * 4);
 
         // Make sure the canvas fills the full screen in XR mode
         var canvas = Module["canvas"];
@@ -171,6 +218,7 @@ var WebARModule =
         };
     },
 
+    // Called when an frame is about to be rendered.
     $jsWebAROnXRFrame__deps: ["$WebAR", "$jsWebARSetState"],
     $jsWebAROnXRFrame: function(frame)
     {
@@ -187,25 +235,27 @@ var WebARModule =
             // In mobile AR, there is only one view.
             var view = pose.views[0];
 
+            var p = pose.transform.position;
+
             // Keep track of the framebuffer viewport
             WebAR.viewport = WebAR.session.renderState.baseLayer.getViewport(view);
 
-            // Copy the view's transform and projection matrices to the C# shared memory.
-            HEAPF32.set(view.transform.matrix, WebAR.viewMatrix >> 2);
-            HEAPF32.set(view.projectionMatrix, WebAR.projectionMatrix >> 2);
+            // Copy the view's transform and pose position to the C# shared memory.
+            WebAR._posePosition[0] = p.x;
+            WebAR._posePosition[1] = p.y;
+            WebAR._posePosition[2] = p.z;
+            WebAR._posePosition[3] = 1.0;
+            HEAPF32.set(view.transform.matrix, WebAR.sharedData);
+            HEAPF32.set(WebAR._posePosition, WebAR.sharedData + 16);
 
             jsWebARSetState(WebAR.XRState.running);
         }
     },
 
+    // Called when the WebXR session has ended.
     $jsWebAROnSessionEnded__deps: ["$WebAR", "$jsWebARSetState"],
     $jsWebAROnSessionEnded: function()
     {
-        _free(WebAR.viewMatrix);
-        _free(WebAR.projectionMatrix);
-        WebAR.viewMatrix = null;
-        WebAR.projectionMatrix = null;
-
         // Restore the canvas size
         var canvas = Module["canvas"];
         canvas.style.width = WebAR.origCanvasWidth;

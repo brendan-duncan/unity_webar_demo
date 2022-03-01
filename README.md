@@ -14,3 +14,11 @@ Is a Javascript file that gets loaded prior to webar.jslib, and creates a hook i
 
 **Assets/Scripts/WebARManager.cs**
 Is a C# script that bridges the Javascript library to C#, and defines a MonoBehaviour to interact with Unity.
+
+## Missing Features
+
+* No integration with Unity XR frameworks.
+
+* In XR mode, touch inputs are not recieved by Unity.
+
+* Only the very minimal amount of WebXR has been implemented.
