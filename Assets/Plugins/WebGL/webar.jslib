@@ -27,12 +27,11 @@ var WebARModule =
         origCanvasWidth: null,
         origCanvasHeight: null,
 
-        sharedData: 0,
-        _posePosition: new Float32Array([0,0,0,1]),
+        sharedData: 0
     },
 
-    JS_WebAR_Initialize__deps: ["$WebAR", "JS_WebAR_GetState", "JS_WebAR_RequestSession",
-                                "JS_WebAR_EndSession", "$jsWebARSetState"],
+    JS_WebAR_Initialize__deps: ["$WebAR", "JS_WebAR_GetState", "$jsWebARRequestSession",
+                                "$jsWebAREndSession", "$jsWebARSetState"],
     JS_WebAR_Initialize: function(sharedData, stateChangeCallback)
     {
         // navigator.xr will be undefined if WebXR is not available.
@@ -50,9 +49,9 @@ var WebARModule =
             WebAR.xrButton.addEventListener("click", function()
             {
                 if (_JS_WebAR_GetState() == 0)
-                    _JS_WebAR_RequestSession();
+                    jsWebARRequestSession();
                 else
-                    _JS_WebAR_EndSession();
+                    jsWebAREndSession();
             });
 
             // Check to see if the browser supports immersive-ar mode, otherwise disable the button.
@@ -79,8 +78,8 @@ var WebARModule =
         return WebAR.state;
     },
 
-    JS_WebAR_RequestSession__deps: ["$WebAR", "$jsWebAROnSessionStarted", "$jsWebARSetState"],
-    JS_WebAR_RequestSession: function()
+    $jsWebARRequestSession__deps: ["$WebAR", "$jsWebAROnSessionStarted", "$jsWebARSetState"],
+    $jsWebARRequestSession: function()
     {
         jsWebARSetState(WebAR.XRState.startRequested);
         var options =
@@ -95,8 +94,8 @@ var WebARModule =
         });
     },
 
-    JS_WebAR_EndSession__deps: ["$WebAR"],
-    JS_WebAR_EndSession: function()
+    $jsWebAREndSession__deps: ["$WebAR"],
+    $jsWebAREndSession: function()
     {
         if (WebAR.session)
             WebAR.session.end();
@@ -162,6 +161,7 @@ var WebARModule =
             WebAR.localReferenceSpace = localReferenceSpace;
         });
 
+        // Update WebXR session to use the Unity WebGL context.
         session.updateRenderState(
         {
             baseLayer: new XRWebGLLayer(session, GLctx)
@@ -236,15 +236,10 @@ var WebARModule =
             var view = pose.views[0];
             HEAPF32.set(view.transform.matrix, WebAR.sharedData);
 
-            // Copy the pose position to the C# shared memory.
-            var pos = pose.transform.position;
-            WebAR._posePosition[0] = pos.x;
-            WebAR._posePosition[1] = pos.y;
-            WebAR._posePosition[2] = pos.z;
-            HEAPF32.set(WebAR._posePosition, WebAR.sharedData + 16);
-
             jsWebARSetState(WebAR.XRState.running);
         }
+        else
+            jsWebARSetState(WebAR.XRState.pendingPose);
     },
 
     // Called when the WebXR session has ended.
@@ -262,7 +257,6 @@ var WebARModule =
         jsWebARSetState(WebAR.XRState.stopped);
         WebAR.session = null;
         WebAR.framebuffer = null;
-        WebAR.viewport = null;
     }
 };
 

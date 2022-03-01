@@ -20,21 +20,11 @@ namespace WebAR
         [DllImport("__Internal")]
         public static extern int JS_WebAR_GetState();
 
-        [DllImport("__Internal")]
-        public static extern void JS_WebAR_RequestSession();
-
-        [DllImport("__Internal")]
-        public static extern void JS_WebAR_EndSession();
         #else
-
         // Implement dummy versions of the functions for non-Web platforms.
         public static void JS_WebAR_Initialize(float[] sharedData, StateChangeCallback callback) {}
 
         public static int JS_WebAR_GetState() { return 0; }
-
-        public static void JS_WebAR_RequestSession() { }
-
-        public static void JS_WebAR_EndSession() { }
         #endif
     }
 }
@@ -45,8 +35,8 @@ public class WebARManager : MonoBehaviour
     public Camera arCamera;
 
     int webARState = 0;
-    // sharedData is stored as viewMatrix:Matrix4x4, posePosition:Vector3
-    float[] sharedData = new float[16 + 4];
+    // Memory shared with Javascript, so Javascript can pass the ViewMatrix to C#.
+    float[] sharedData = new float[16];
 
     // Keep track of the singleton instance because Javascript callbacks can only be static.
     static WebARManager instance;
@@ -62,49 +52,30 @@ public class WebARManager : MonoBehaviour
     [MonoPInvokeCallback(typeof(WebAR.Manager.StateChangeCallback))]
     public static void StateChangeCallback(int state)
     {
-        instance.OnStateChange(state);
+        instance.webARState = state;
     }
 
     Vector3 posePosition = new Vector3();
     Matrix4x4 viewMatrix = new Matrix4x4();
 
-    void GetMatrixFromSharedData(int index, ref Matrix4x4 matrix)
-    {
-        for (int i = 0; i < 16; i++)
-        {
-            matrix[i] = sharedData[index + i];
-        }
-    }
-
-    void GetVector3FromSharedArray(int index, ref Vector3 vec3)
-    {
-        vec3.x = sharedData[index];
-        vec3.y = sharedData[index + 1];
-        vec3.z = sharedData[index + 2];
-    }
-
     void Update()
     {
         if (webARState == 3)
         {
-            GetMatrixFromSharedData(0, ref viewMatrix);
-            GetVector3FromSharedArray(16, ref posePosition);
+            // Copy the view matrix and pose position from the JS shared memory.
+            for (int i = 0; i < 16; i++)
+                viewMatrix[i] = sharedData[i];
 
-            arCamera.transform.localPosition = posePosition;
+            posePosition.Set(viewMatrix[0,3], viewMatrix[1,3], -viewMatrix[2,3]);
 
-            // Extract the position and rotation from the view matrix.
+            // Extract the rotation from the view matrix.
             Quaternion viewRotation = viewMatrix.rotation;
-
             // Adjust the coordinates from WebXR to Unity
             viewRotation[2] = -viewRotation[2];
             viewRotation[3] = -viewRotation[3];
 
+            arCamera.transform.localPosition = posePosition;
             arCamera.transform.localRotation = viewRotation;
         }
-    }
-
-    void OnStateChange(int state)
-    {
-        webARState = state;
     }
 }
