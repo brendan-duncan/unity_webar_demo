@@ -189,13 +189,28 @@ var WebARModule =
             origBindFramebuffer.call(GLctx, target, fb);
         };
 
+        // With Linear Color Space rendering, Unity will draw into a framebuffer and then blit
+        // that to the backbuffer using a shader to convert the linear colors to sRGB for display.
+        // Prior to the blit, it will clear out the alpha channel of the linear framebuffer.
+        // It does this by calling glCtx.colorMask(false, false, false, true), followed by a
+        // GLctx.clear. If the alpha channel is cleared out, then it won't be able to composite
+        // onto the camera video of the XR framebuffer. To work around this, detect when the
+        // color mask is set to clear only the alpha channel, and skip doing the clear if it was.
+        var skipClear = false;
+        var origColorMask = GLctx.colorMask;
+        GLctx.colorMask = function(r, g, b, a)
+        {
+            skipClear = (!r && !g && !b && a);
+            origColorMask.call(GLctx, r, g, b, a);
+        };
+
         // Because Unity will try and clear the canvas framebuffer, which would clear the camera
         // image on the WebXR framebuffer, we'll block calls to clear on the backbuffer.
         var origClear = GLctx.clear;
         GLctx.clear = function(mask)
         {
             // Block calls to clear the backbuffer so we don't clear the AR camera.
-            if (!backBufferBound)
+            if (!backBufferBound && !skipClear)
                 origClear.call(GLctx, mask);
         };
 
