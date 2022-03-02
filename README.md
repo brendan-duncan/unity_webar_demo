@@ -17,12 +17,12 @@ Is a C# script that bridges the Javascript library to C#, and defines a MonoBeha
 
 ## Details / Missing Features
 
+* This project uses **private APIs**, and there are no guarantees of it working in any particular version of Unity.
+
 * No integration with Unity XR frameworks.
 
 * In XR mode, touch inputs are not recieved by Unity.
 
-* Only the very minimal amount of WebXR has been implemented.
+* Only a minimal amount of WebXR has been implemented.
 
-* Using Skybox as the Camera Background will draw on top of the camera video. Use Solid Color Background, where the alpha of the Background Color controls the blend with the camera video.
-
-* Linear Color Space currently doesn't work for rendering with the camera video.
+* Using Skybox as the Camera Background will draw on top of the camera video. Use Solid Color Background with a transparent alpha (0). The alpha of the Background Color will blend the background with the AR camera video.
