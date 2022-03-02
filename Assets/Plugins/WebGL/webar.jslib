@@ -222,7 +222,7 @@ var WebARModule =
         };
     },
 
-    // Called when an frame is about to be rendered.
+    // Called when a frame is about to be rendered.
     $jsWebAROnXRFrame__deps: ["$WebAR", "$jsWebARSetState"],
     $jsWebAROnXRFrame: function(frame)
     {

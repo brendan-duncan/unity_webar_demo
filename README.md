@@ -15,10 +15,14 @@ Is a Javascript file that gets loaded prior to webar.jslib, and creates a hook i
 **Assets/Scripts/WebARManager.cs**
 Is a C# script that bridges the Javascript library to C#, and defines a MonoBehaviour to interact with Unity.
 
-## Missing Features
+## Details / Missing Features
 
 * No integration with Unity XR frameworks.
 
 * In XR mode, touch inputs are not recieved by Unity.
 
 * Only the very minimal amount of WebXR has been implemented.
+
+* Using Skybox as the Camera Background will draw on top of the camera video. Use Solid Color Background, where the alpha of the Background Color controls the blend with the camera video.
+
+* Linear Color Space currently doesn't work for rendering with the camera video.
