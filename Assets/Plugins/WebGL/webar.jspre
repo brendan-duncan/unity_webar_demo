@@ -167,6 +167,10 @@ WebARManager.prototype.OnSessionStarted = function(session)
         baseLayer: new XRWebGLLayer(session, GLctx)
     });
 
+    // The following code is iterfacing with the back-end "private" APIs of Unity.
+    // There is no guarantee that any of this will work for any particular version of Unity,
+    // and there is no warranty of support should any of it fail to work.
+
     // Replace the WebGL function bindFramebuffer with our own function. When Unity calls
     // bindFramebuffer with a null framebuffer, that means it's binding the canvas framebuffer.
     // We'll detect this and replace the null framebuffer with the WebXR framebuffer, so that
@@ -174,6 +178,7 @@ WebARManager.prototype.OnSessionStarted = function(session)
     // the camera video frame already drawn onto it.
     var origBindFramebuffer = GLctx.bindFramebuffer;
     var backBufferBound = false;
+    var currentFramebuffer = null;
     GLctx.bindFramebuffer = function(target, fb)
     {
         // If the framebuffer is null, then it's the canvas backbuffer. Instead of binding
@@ -181,6 +186,7 @@ WebARManager.prototype.OnSessionStarted = function(session)
         // We'll keep track that the XRSession framebuffer was bound so that we can block
         // Unity trying to clear it.
         backBufferBound = !fb;
+        currentFramebuffer = fb || currentFramebuffer;
         fb = fb || self.framebuffer || null;
         origBindFramebuffer.call(GLctx, target, fb);
     };
@@ -192,11 +198,15 @@ WebARManager.prototype.OnSessionStarted = function(session)
     // GLctx.clear. If the alpha channel is cleared out, then it won't be able to composite
     // onto the camera video of the XR framebuffer. To work around this, detect when the
     // color mask is set to clear only the alpha channel, and skip doing the clear if it was.
+    var lastFramebuffer = null;
     var skipClear = false;
     var origColorMask = GLctx.colorMask;
     GLctx.colorMask = function(r, g, b, a)
     {
-        skipClear = (!r && !g && !b && a);
+        // Only skip alpha clearing for the framebuffer that's about to be blitted to WebXR.
+        // To know what framebuffer that is, make a note of the last framebuffer bound prior
+        // to the canvas backbuffer being bound.
+        skipClear = !lastFramebuffer ? false : (!r && !g && !b && a);
         origColorMask.call(GLctx, r, g, b, a);
     };
 
@@ -227,6 +237,7 @@ WebARManager.prototype.OnSessionStarted = function(session)
 
             // Call the original Unity/Emscritpen requestAnimationFrame callback
             cb(t);
+            lastFramebuffer = currentFramebuffer;
         }
         // Route the window.requestAnimationFrame call to XRSession.requestAnimationFrame
         self.session.requestAnimationFrame(callback);
