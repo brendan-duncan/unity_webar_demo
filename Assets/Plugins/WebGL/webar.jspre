@@ -131,7 +131,7 @@ WebARManager.prototype.SetState = function(state, alwaysSend)
     this.UpdateButton();
     // Call the C# callback function for the state change.
     if (this.stateChangeCallback)
-        dynCall_vi(this.stateChangeCallback, state);
+        dynCall('vi', this.stateChangeCallback, [state]);
 }
 
 // Called when the WebXR session has started.
