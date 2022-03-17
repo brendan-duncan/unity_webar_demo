@@ -33,33 +33,33 @@ function WebARManager()
 
 WebARManager.prototype.Initialize = function(sharedData, stateChangeCallback)
 {
+    var self = this;
+    var canvas = Module["canvas"];
+
+    // Add an overlay element to provide a start button and information for WebXR.
+    this.overlay = document.createElement("div");
+    this.overlay.style = "position: absolute; top: 0px; left: 0px; width:" +
+                            canvas.width + "px; height:" + canvas.height + "px;";
+    canvas.parentNode.insertBefore(this.overlay, canvas);
+    // Add a button to start/stop WebXR
+    this.xrButton = document.createElement("button");
+    this.overlay.appendChild(this.xrButton);
+    this.xrButton.addEventListener("click", function()
+    {
+        if (self.GetState() == 0)
+            self.RequestSession();
+        else
+            self.EndSession();
+    });
+
     // navigator.xr will be undefined if WebXR is not available.
     if (navigator.xr)
     {
-        var self = this;
-        var canvas = Module["canvas"];
-
-        // Add an overlay element to provide a start button and information for WebXR.
-        this.overlay = document.createElement("div");
-        this.overlay.style = "position: absolute; top: 0px; left: 0px; width:" +
-                                canvas.width + "px; height:" + canvas.height + "px;";
-        canvas.parentNode.insertBefore(this.overlay, canvas);
-        // Add a button to start/stop WebXR
-        this.xrButton = document.createElement("button");
-        this.overlay.appendChild(this.xrButton);
-        this.xrButton.addEventListener("click", function()
-        {
-            if (self.GetState() == 0)
-                self.RequestSession();
-            else
-                self.EndSession();
-        });
-
         // Check to see if the browser supports immersive-ar mode, otherwise disable the button.
         navigator.xr.isSessionSupported('immersive-ar').then(function (supported)
         {
             if (!supported)
-                this.SetState(self.State.unsupported);
+                self.SetState(self.State.unsupported);
         });
     }
 
